@@ -118,41 +118,41 @@ def process_image(image, conf_threshold=0.6, yolo_conf=0.01, yolo_iou=0.1):
     msg = f"총 {len(detections)}개의 아이콘이 검출되었습니다." if detections else "아이콘이 검출되지 않았습니다."
     return annotated_image, msg, detections
 
-# --- UI 구성 ---
-st.title("AI 아이콘 검출 서비스")
-st.write("이미지 파일을 업로드한 후 '아이콘 분석' 버튼을 누르면 결과를 확인할 수 있습니다.")
+# --- 사이드바 UI 구성 ---
+st.sidebar.title("AI 아이콘 검출 서비스")
+st.sidebar.write("이미지 파일을 업로드한 후 '아이콘 분석' 버튼을 누르면 결과를 확인할 수 있습니다.")
 
-uploaded_file = st.file_uploader("이미지 파일 업로드 (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"])
+uploaded_file = st.sidebar.file_uploader("이미지 파일 업로드 (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"])
 
 if uploaded_file is not None:
-    if st.button("아이콘 분석", key="analyze_button", disabled=st.session_state.analyze_in_progress):
+    if st.sidebar.button("아이콘 분석", key="analyze_button", disabled=st.session_state.analyze_in_progress):
         st.session_state.analyze_in_progress = True
         with st.spinner("아이콘 분석 중..."):
+            # 업로드된 파일을 읽고 처리
             input_image = Image.open(uploaded_file).convert("RGB")
             annotated_image, result_msg, detections = process_image(input_image)
         st.session_state.analyze_in_progress = False
 
+        # 결과 메시지는 메인 페이지에 출력
         st.write(result_msg)
-        
-        # 검출된 아이콘이 있을 경우에 인터랙티브 HTML로 이미지와 테이블을 표시
+
+        # 검출된 아이콘이 있을 경우 인터랙티브 HTML로 결과 표시
         if detections:
-            # annotated_image → Base64 인코딩
+            # 이미지 Base64 인코딩
             buffered = BytesIO()
             annotated_image.save(buffered, format="PNG")
             annotated_image_base64 = base64.b64encode(buffered.getvalue()).decode()
             
-            # 각 검출에 대해 테이블에 표시할 내용과 오버레이 박스 좌표 준비
             table_rows = ""
             detection_list = []
             for idx, det in enumerate(detections):
                 predicted_name, cropped_img, prob, box_coords = det
                 x1, y1, x2, y2 = box_coords
-                # Base64 인코딩 (크롭 이미지)
+
                 buf = BytesIO()
                 cropped_img.save(buf, format="PNG")
                 img_base64 = base64.b64encode(buf.getvalue()).decode()
                 
-                # onmouseover와 onmouseout에 깜빡이는 효과를 추가하고, onclick 시 스크롤 이벤트 실행
                 table_rows += f"""
                 <tr class="tableRow" 
                     onmouseover="highlightBox({idx})" 
@@ -174,9 +174,7 @@ if uploaded_file is not None:
                 })
             
             detections_json = json.dumps(detection_list)
-
-            # 인터랙티브 HTML 생성 (좌측: 이미지, 우측: 상세 정보 테이블)
-            # #imgContainer에 max-height와 overflow-y 속성을 추가하여 스크롤 기능을 복원했습니다.
+            
             interactive_html = f"""
             <!DOCTYPE html>
             <html>
@@ -198,7 +196,7 @@ if uploaded_file is not None:
                          border: 3px solid transparent;
                          pointer-events: none;
                     }}
-                    /* 깜빡이는 효과를 위한 애니메이션 */
+                    /* 깜빡이는 효과 애니메이션 */
                     @keyframes blinkEffect {{
                         0%   {{ border-color: green; }}
                         50%  {{ border-color: transparent; }}
@@ -245,7 +243,6 @@ if uploaded_file is not None:
                     function updateOverlayBoxes() {{
                         var img = document.getElementById("baseImage");
                         var container = document.getElementById("imgContainer");
-                        // 기존 overlay 박스 삭제
                         var oldBoxes = document.getElementsByClassName("highlightBox");
                         while(oldBoxes.length > 0) {{
                             oldBoxes[0].parentNode.removeChild(oldBoxes[0]);
@@ -290,10 +287,8 @@ if uploaded_file is not None:
                     }}
 
                     function scrollToBox(index) {{
-                        var imgContainer = document.getElementById("imgContainer");
                         var box = document.getElementById("box" + index);
                         if (box) {{
-                            // 스크롤을 부드럽게 진행하여 해당 박스가 중앙에 오도록 함
                             box.scrollIntoView({{behavior: 'smooth', block: 'center'}});
                         }}
                     }}

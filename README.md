@@ -1,5 +1,7 @@
 # streamlit_icon_detect
 
+https://appicondetect.streamlit.app/
+
 best.pt
 - YOLOv8 아이콘 객체 탐지 모델
 

@@ -33,14 +33,13 @@ if "analyze_in_progress" not in st.session_state:
 @st.cache_resource
 def load_models():
     # 파일 경로는 본인 환경에 맞게 수정하세요.
-    yolo_model_path = "best.pt" # datasets/runs/detect/train17/weights/best.pt
-    mobile_model_path = "best_model.pth"
+    yolo_model_path = "best.pt"
+    efficientnet_model_path = "best_model.pth"
 
     # YOLO 모델 (아이콘 영역 검출)
     yolo_model = YOLO(yolo_model_path)
 
-    # 분류 모델: MobileNetV3 Small
-    # 클래스 이름은 학습 당시 사용한 순서와 동일해야 합니다.
+    # 분류 모델: EfficientNet-B0
     class_names = [
         "add", "alarm", "arrow_down", "arrow_left", "arrow_right", "arrow_up", "bookmark", "calendar", "call", "camera", 
         "cart", "check_mark", "close", "delete", "download", "edit", "facebook", "fast_forward", "favorite", "filter", 
@@ -48,27 +47,36 @@ def load_models():
         "more", "music", "mute", "negative", "notifications", "play", "refresh", "rewind", "search", "send", "settings", 
         "share", "sort", "thumbs_up", "trash", "user", "video_camera", "volume"
     ]
-    mobile_model = models.mobilenet_v3_small(pretrained=False)
-    in_features = mobile_model.classifier[-1].in_features
-    mobile_model.classifier[-1] = torch.nn.Linear(in_features, len(class_names))
+
+    # EfficientNet-B0 모델 초기화
+    model = models.efficientnet_b0(pretrained=False)
+    in_features = model.classifier[1].in_features
+    model.classifier = torch.nn.Sequential(
+        torch.nn.Dropout(p=0.3),
+        torch.nn.Linear(in_features, len(class_names))
+    )
     
-    state_dict = torch.load(mobile_model_path, map_location=torch.device("cpu"))
-    mobile_model.load_state_dict(state_dict)
-    mobile_model.eval()
+    # 저장된 가중치 로드
+    checkpoint = torch.load(efficientnet_model_path, map_location=torch.device('cpu'))
+    if 'model_state_dict' in checkpoint:
+        model.load_state_dict(checkpoint['model_state_dict'])
+    else:
+        model.load_state_dict(checkpoint)
+    model.eval()
     
-    # MobileNetV3 기본 입력 크기 224x224에 맞춘 전처리
+    # EfficientNet-B0 기본 입력 크기 224x224에 맞춘 전처리
     transform = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225])
+                          std=[0.229, 0.224, 0.225])
     ])
-    return yolo_model, mobile_model, transform, class_names
+    return yolo_model, model, transform, class_names
 
-yolo_model, mobile_model, transform, class_names = load_models()
+yolo_model, efficientnet_model, transform, class_names = load_models()
 
 # --- 이미지 처리 함수 ---
-def process_image(image, conf_threshold=0.6, yolo_conf=0.01, yolo_iou=0.1):
+def process_image(image, conf_threshold=0.1, yolo_conf=0.1, yolo_iou=0.1):
     # 임시 저장 후 YOLO 모델에 입력
     temp_path = "temp_upload.png"
     image.save(temp_path)
@@ -98,7 +106,7 @@ def process_image(image, conf_threshold=0.6, yolo_conf=0.01, yolo_iou=0.1):
         cropped = image.crop((x1, y1, x2, y2))
         img_tensor = transform(cropped).unsqueeze(0)
         with torch.no_grad():
-            outputs = mobile_model(img_tensor)
+            outputs = efficientnet_model(img_tensor)
             probabilities = torch.softmax(outputs, dim=1)
             max_prob, predicted_index = torch.max(probabilities, 1)
             probability = max_prob.item()

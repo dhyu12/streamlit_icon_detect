@@ -34,7 +34,7 @@ if "analyze_in_progress" not in st.session_state:
 def load_models():
     # 파일 경로는 본인 환경에 맞게 수정하세요.
     yolo_model_path = "best.pt" # datasets/runs/detect/train17/weights/best.pt
-    mobile_model_path = "mobilenetv3_best.pth"
+    mobile_model_path = "best_model.pth"
 
     # YOLO 모델 (아이콘 영역 검출)
     yolo_model = YOLO(yolo_model_path)
